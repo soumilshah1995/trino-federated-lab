@@ -1,0 +1,59 @@
+version: "3"
+
+services:
+  mysql1:
+    image: quay.io/debezium/example-mysql:2.1
+    container_name: mysql1
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword1
+      MYSQL_USER: user1
+      MYSQL_PASSWORD: password1
+      MYSQL_DATABASE: db1
+    restart: always
+
+  mysql2:
+    image: quay.io/debezium/example-mysql:2.1
+    container_name: mysql2
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword2
+      MYSQL_USER: user2
+      MYSQL_PASSWORD: password2
+      MYSQL_DATABASE: db2
+    restart: always
+
+  trino-coordinator:
+    image: trinodb/trino:latest
+    hostname: trino-coordinator
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./trino/etc:/etc/trino
+    depends_on:
+      - mysql1
+      - mysql2
+
+  metastore_db:
+    image: postgres:11
+    hostname: metastore_db
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: hive
+      POSTGRES_DB: metastore
+    command: [ "postgres", "-c", "wal_level=logical" ]
+    healthcheck:
+      test: [ "CMD", "psql", "-U", "hive", "-c", "SELECT 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./postgresscripts:/docker-entrypoint-initdb.d
+
+networks:
+  default:
+    name: federated-sql
